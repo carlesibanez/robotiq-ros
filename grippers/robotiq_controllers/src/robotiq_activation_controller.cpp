@@ -38,8 +38,8 @@ controller_interface::InterfaceConfiguration RobotiqActivationController::comman
    controller_interface::InterfaceConfiguration config;
    config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
 
-   config.names.emplace_back("reactivate_gripper/reactivate_gripper_cmd");
-   config.names.emplace_back("reactivate_gripper/reactivate_gripper_response");
+   config.names.emplace_back(reactivate_gpio_ + "/reactivate_gripper_cmd");
+   config.names.emplace_back(reactivate_gpio_ + "/reactivate_gripper_response");
 
    return config;
 }
@@ -56,6 +56,18 @@ controller_interface::return_type RobotiqActivationController::update(const rclc
                                                                       const rclcpp::Duration& /*period*/)
 {
    return controller_interface::return_type::OK;
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn RobotiqActivationController::on_configure(
+   const rclcpp_lifecycle::State& /*previous_state*/)
+{
+   reactivate_gpio_ = get_node()->get_parameter("reactivate_gpio").as_string();
+   if(reactivate_gpio_.empty())
+   {
+      RCLCPP_ERROR(get_node()->get_logger(), "The 'reactivate_gpio' parameter is empty.");
+      return LifecycleNodeInterface::CallbackReturn::ERROR;
+   }
+   return LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn RobotiqActivationController::on_activate(
@@ -104,6 +116,15 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn Roboti
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn RobotiqActivationController::on_init()
 {
+   try
+   {
+      auto_declare<std::string>("reactivate_gpio", "reactivate_gripper");
+   }
+   catch(const std::exception& e)
+   {
+      RCLCPP_ERROR(get_node()->get_logger(), "Failed to declare the parameters: %s", e.what());
+      return LifecycleNodeInterface::CallbackReturn::ERROR;
+   }
    return LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 

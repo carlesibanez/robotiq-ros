@@ -113,6 +113,22 @@ bool declaresOnlySupportedStateInterfaces(const hardware_interface::ComponentInf
    return true;
 }
 
+bool endsWith(const std::string& text, const std::string& suffix)
+{
+   return text.size() >= suffix.size() && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+// The description may prefix the GPIO as it prefixes the joint, e.g.
+// left_reactivate_gripper, so a match is by suffix. Without one the driver
+// exports the unprefixed name, as it always has.
+std::string findReactivateGpio(const std::vector<hardware_interface::ComponentInfo>& gpios)
+{
+   const auto gpio = std::find_if(gpios.begin(), gpios.end(), [](const hardware_interface::ComponentInfo& candidate) {
+      return endsWith(candidate.name, kReactivateGripperGpio);
+   });
+   return gpio == gpios.end() ? kReactivateGripperGpio : gpio->name;
+}
+
 // Shared by the two messages that report whether the link came up. A failed
 // connect is almost always one of these three being wrong, and the SDK logs
 // only the port and baud rate, at debug level.
@@ -177,6 +193,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_init(cons
    gripper_fault_ = {};
    gripper_position_command_ = std::numeric_limits<double>::quiet_NaN();
    reactivate_gripper_cmd_ = NO_NEW_CMD_;
+   reactivate_gpio_ = findReactivateGpio(info_.gpios);
 
    const hardware_interface::ComponentInfo& joint = info_.joints.at(0);
 
@@ -309,9 +326,9 @@ std::vector<hardware_interface::InterfaceDescription> RobotiqGripperHardwareInte
                                                                   describe(joint, kMaxEffortInterface)};
    for(const char* name : {kReactivateCmdInterface, kReactivateResponseInterface})
    {
-      if(gpio_command_interfaces_.count(fullName(kReactivateGripperGpio, name)) == 0)
+      if(gpio_command_interfaces_.count(fullName(reactivate_gpio_, name)) == 0)
       {
-         unlisted.push_back(describe(kReactivateGripperGpio, name));
+         unlisted.push_back(describe(reactivate_gpio_, name));
       }
    }
    return unlisted;
@@ -366,8 +383,8 @@ std::vector<hardware_interface::CommandInterface::SharedPtr> RobotiqGripperHardw
                                                       &gripper_position_command_},
         {joint, kMaxVelocityInterface, &gripper_speed_},
         {joint, kMaxEffortInterface, &gripper_force_},
-        {kReactivateGripperGpio, kReactivateCmdInterface, &reactivate_gripper_cmd_},
-        {kReactivateGripperGpio, kReactivateResponseInterface, &reactivate_gripper_response_}})
+        {reactivate_gpio_, kReactivateCmdInterface, &reactivate_gripper_cmd_},
+        {reactivate_gpio_, kReactivateResponseInterface, &reactivate_gripper_response_}})
    {
       exported_commands_.emplace_back(get_command_interface_handle(fullName(prefix, name)), value);
       pushCommand(*value);
@@ -461,8 +478,8 @@ std::vector<hardware_interface::CommandInterface> RobotiqGripperHardwareInterfac
    gripper_force_ = kMaxForceDefault * parameters_.force_multiplier;
 
    command_interfaces.emplace_back(
-      hardware_interface::CommandInterface(kReactivateGripperGpio, kReactivateCmdInterface, &reactivate_gripper_cmd_));
-   command_interfaces.emplace_back(hardware_interface::CommandInterface(kReactivateGripperGpio,
+      hardware_interface::CommandInterface(reactivate_gpio_, kReactivateCmdInterface, &reactivate_gripper_cmd_));
+   command_interfaces.emplace_back(hardware_interface::CommandInterface(reactivate_gpio_,
                                                                         kReactivateResponseInterface,
                                                                         &reactivate_gripper_response_));
 

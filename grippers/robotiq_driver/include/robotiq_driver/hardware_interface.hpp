@@ -249,6 +249,11 @@ protected:
    // another's in a multi-gripper cell.
    rclcpp::Clock diagnostic_clock_{RCL_STEADY_TIME};
 
+   // The reactivate_gripper GPIO's name: the description's, so that a prefixed
+   // one keeps two grippers in one description apart, or kReactivateGripperGpio
+   // when the description declares none. Set in on_init.
+   std::string reactivate_gpio_ = kReactivateGripperGpio;
+
    double reactivate_gripper_cmd_ = 0.0;
    double reactivate_gripper_response_ = 0.0;
    double gripper_force_ = 0.0;

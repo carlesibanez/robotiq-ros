@@ -350,6 +350,99 @@ TEST(TestRobotiqGripperHardwareInterface, ReactivationRoundTripsThroughTheComman
 }
 
 namespace {
+std::string replaceAll(std::string text, const std::string& from, const std::string& to)
+{
+   for(std::size_t at = text.find(from); at != std::string::npos; at = text.find(from, at + to.size()))
+   {
+      text.replace(at, from.size(), to);
+   }
+   return text;
+}
+
+//! minimalRobotUrdf() with \p prefix on the links, the joint, the GPIO and the
+//! component name, as robotiq_description's macro prefixes them.
+std::string prefixedRobotUrdf(const std::string& prefix, const std::string& extra_hardware_params = "")
+{
+   std::string urdf = minimalRobotUrdf(extra_hardware_params);
+   urdf = replaceAll(urdf, "robotiq_85_", prefix + "robotiq_85_");
+   urdf = replaceAll(urdf, "\"reactivate_gripper\"", "\"" + prefix + "reactivate_gripper\"");
+   return replaceAll(urdf, std::string("\"") + kComponentName + "\"", "\"" + prefix + kComponentName + "\"");
+}
+
+//! Two prefixed grippers in one description, each with its own component.
+std::string twoGripperUrdf(const std::string& extra_hardware_params = "")
+{
+   std::string urdf = prefixedRobotUrdf("left_", extra_hardware_params);
+   const std::string right = prefixedRobotUrdf("right_", extra_hardware_params);
+   const std::string body_begin = "<link ";
+   const std::string body_end = "</robot>";
+   const std::size_t begin = right.find(body_begin);
+   urdf.insert(urdf.find(body_end), right.substr(begin, right.find(body_end) - begin));
+   return urdf;
+}
+} // namespace
+
+/**
+ * The GPIO takes its name from the description, so a prefixed one exports its
+ * handshake under that prefix and not under the bare name.
+ */
+TEST(TestRobotiqGripperHardwareInterface, ExportsTheReactivateGpioUnderTheDeclaredName)
+{
+   const std::string urdf = prefixedRobotUrdf("left_");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   const auto keys = rm.command_interface_keys();
+   EXPECT_THAT(keys,
+               testing::IsSupersetOf({"left_reactivate_gripper/reactivate_gripper_cmd",
+                                      "left_reactivate_gripper/reactivate_gripper_response"}));
+   EXPECT_THAT(keys, testing::Not(testing::Contains("reactivate_gripper/reactivate_gripper_cmd")));
+}
+
+/**
+ * Two grippers in one description (issue #131): every interface name is unique,
+ * and each gripper's handshake is bound to its own GPIO.
+ */
+TEST(TestRobotiqGripperHardwareInterface, TwoPrefixedGrippersShareOneDescription)
+{
+   const std::string urdf = twoGripperUrdf(R"(<param name="use_dummy">true</param>)");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   ASSERT_EQ(2u, rm.system_components_size());
+   EXPECT_THAT(rm.command_interface_keys(),
+               testing::IsSupersetOf({"left_robotiq_85_left_knuckle_joint/position",
+                                      "right_robotiq_85_left_knuckle_joint/position",
+                                      "left_reactivate_gripper/reactivate_gripper_cmd",
+                                      "left_reactivate_gripper/reactivate_gripper_response",
+                                      "right_reactivate_gripper/reactivate_gripper_cmd",
+                                      "right_reactivate_gripper/reactivate_gripper_response"}));
+
+   rclcpp_lifecycle::State active{lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE,
+                                  hardware_interface::lifecycle_state_names::ACTIVE};
+   ASSERT_EQ(hardware_interface::return_type::OK,
+             rm.set_component_state(std::string("right_") + kComponentName, active));
+
+   auto request = rm.claim_command_interface("right_reactivate_gripper/reactivate_gripper_cmd");
+   ASSERT_TRUE(compat::setValue(request, 1.0));
+   ASSERT_TRUE(compat::readWriteOk(rm.read(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01))));
+
+   EXPECT_TRUE(std::isnan(compat::getValue(request).value_or(0.0))) << "the right gripper missed its request";
+}
+
+namespace {
 //! The component's own ros2_control block, as on_init receives it.
 hardware_interface::HardwareInfo hardwareInfo(const std::string& urdf)
 {

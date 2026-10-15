@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "controller_interface/controller_interface.hpp"
 #include "std_srvs/srv/trigger.hpp"
 
@@ -40,6 +42,8 @@ public:
    controller_interface::InterfaceConfiguration state_interface_configuration() const override;
 
    controller_interface::return_type update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+   CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
 
    CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
@@ -57,6 +61,11 @@ private:
       REACTIVATE_GRIPPER_CMD,
       REACTIVATE_GRIPPER_RESPONSE
    };
+
+   // The hardware's reactivate_gripper GPIO. A description holding several
+   // grippers prefixes it, e.g. left_reactivate_gripper, and each gripper's
+   // controller names its own here. Read from the reactivate_gpio parameter.
+   std::string reactivate_gpio_;
 
    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reactivate_gripper_srv_;
 };
