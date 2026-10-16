@@ -11,7 +11,7 @@ require_image() {
   docker image inspect "$1" >/dev/null 2>&1 || {
     echo "image $1 not found; build it first, from the repo root:" >&2
     echo "  docker build -f docker/Dockerfile -t ${BASE_IMAGE} ." >&2
-    echo "  docker build -t ${MCP_IMAGE} mcp" >&2
+    echo "  docker build -f mcp/Dockerfile -t ${MCP_IMAGE} ." >&2
     exit 1
   }
 }

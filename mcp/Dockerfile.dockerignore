@@ -1,0 +1,8 @@
+*
+!VERSION
+!mcp/pyproject.toml
+!mcp/uv.lock
+!mcp/README.md
+!mcp/gripper_mcp
+!mcp/entrypoint.sh
+**/__pycache__

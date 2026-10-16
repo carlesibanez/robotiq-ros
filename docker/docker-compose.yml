@@ -18,7 +18,8 @@
 services:
   gripper-mcp:
     build:
-      context: ../mcp
+      context: ..
+      dockerfile: mcp/Dockerfile
       args:
         BASE_IMAGE: ${ROBOTIQ_ROS2_IMAGE:-robotiq_ros2:jazzy}
     image: ${GRIPPER_MCP_IMAGE:-robotiq_gripper_mcp:jazzy}

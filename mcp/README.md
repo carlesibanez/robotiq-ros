@@ -163,7 +163,7 @@ mounted. The short version:
 
 ```bash
 docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
-docker build -t robotiq_gripper_mcp:jazzy mcp
+docker build -f mcp/Dockerfile -t robotiq_gripper_mcp:jazzy .
 docker compose -f docker/docker-compose.yml up --build
 ```
 
@@ -253,8 +253,8 @@ dependency to an exact file and hash, and CI installs from it with
   together; plain `uv sync` also refreshes the lock after a hand edit.
 - `uv lock --upgrade` (or `--upgrade-package <pkg>`) moves pinned versions
   within the ranges `pyproject.toml` declares. Nothing else does.
-- The lock also records this project's own version, so a release bump
-  rewrites it (see `dev/version.py`).
+- This project's own version is read from the repo-root `VERSION` at build
+  time, so the lock holds none and a release bump leaves both files alone.
 
 Formatting and linting run through the repo-wide pre-commit config
 (`pre-commit run -a` from the repo root). CI for this directory is
