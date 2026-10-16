@@ -113,22 +113,6 @@ bool declaresOnlySupportedStateInterfaces(const hardware_interface::ComponentInf
    return true;
 }
 
-bool endsWith(const std::string& text, const std::string& suffix)
-{
-   return text.size() >= suffix.size() && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-// The description may prefix the GPIO as it prefixes the joint, e.g.
-// left_reactivate_gripper, so a match is by suffix. Without one the driver
-// exports the unprefixed name, as it always has.
-std::string findReactivateGpio(const std::vector<hardware_interface::ComponentInfo>& gpios)
-{
-   const auto gpio = std::find_if(gpios.begin(), gpios.end(), [](const hardware_interface::ComponentInfo& candidate) {
-      return endsWith(candidate.name, kReactivateGripperGpio);
-   });
-   return gpio == gpios.end() ? kReactivateGripperGpio : gpio->name;
-}
-
 // Shared by the two messages that report whether the link came up. A failed
 // connect is almost always one of these three being wrong, and the SDK logs
 // only the port and baud rate, at debug level.
@@ -193,7 +177,19 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_init(cons
    gripper_fault_ = {};
    gripper_position_command_ = std::numeric_limits<double>::quiet_NaN();
    reactivate_gripper_cmd_ = NO_NEW_CMD_;
-   reactivate_gpio_ = findReactivateGpio(info_.gpios);
+
+   // The one GPIO is the reactivation handshake, under whatever name the
+   // description gives it: a prefixed one keeps two grippers in one description
+   // apart. Without one the driver exports it as kReactivateGripperGpio.
+   if(info_.gpios.size() > 1)
+   {
+      RCLCPP_FATAL(kLogger,
+                   "Component '%s' declares %zu GPIOs. At most 1 expected: the reactivation handshake.",
+                   info_.name.c_str(),
+                   info_.gpios.size());
+      return CallbackReturn::ERROR;
+   }
+   reactivate_gpio_ = info_.gpios.empty() ? kReactivateGripperGpio : info_.gpios.front().name;
 
    const hardware_interface::ComponentInfo& joint = info_.joints.at(0);
 

@@ -58,18 +58,6 @@ controller_interface::return_type RobotiqActivationController::update(const rclc
    return controller_interface::return_type::OK;
 }
 
-rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn RobotiqActivationController::on_configure(
-   const rclcpp_lifecycle::State& /*previous_state*/)
-{
-   reactivate_gpio_ = get_node()->get_parameter("reactivate_gpio").as_string();
-   if(reactivate_gpio_.empty())
-   {
-      RCLCPP_ERROR(get_node()->get_logger(), "The 'reactivate_gpio' parameter is empty.");
-      return LifecycleNodeInterface::CallbackReturn::ERROR;
-   }
-   return LifecycleNodeInterface::CallbackReturn::SUCCESS;
-}
-
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn RobotiqActivationController::on_activate(
    const rclcpp_lifecycle::State& /*previous_state*/)
 {
@@ -118,11 +106,16 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn Roboti
 {
    try
    {
-      auto_declare<std::string>("reactivate_gpio", "reactivate_gripper");
+      reactivate_gpio_ = auto_declare<std::string>("reactivate_gpio", "reactivate_gripper");
    }
    catch(const std::exception& e)
    {
       RCLCPP_ERROR(get_node()->get_logger(), "Failed to declare the parameters: %s", e.what());
+      return LifecycleNodeInterface::CallbackReturn::ERROR;
+   }
+   if(reactivate_gpio_.empty())
+   {
+      RCLCPP_ERROR(get_node()->get_logger(), "The 'reactivate_gpio' parameter is empty.");
       return LifecycleNodeInterface::CallbackReturn::ERROR;
    }
    return LifecycleNodeInterface::CallbackReturn::SUCCESS;
