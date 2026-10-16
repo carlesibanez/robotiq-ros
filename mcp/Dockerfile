@@ -2,9 +2,10 @@
 # already has rclpy, control_msgs and robotiq_tsf's messages on the distro's
 # Python, so the server here only adds its own pure-Python dependencies.
 #
-# Build the base first, then this one with mcp/ as the context:
+# Build the base first, then this one, both from the repo root: the package
+# reads its version from the root VERSION file.
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
-#   docker build -t robotiq_gripper_mcp:jazzy mcp
+#   docker build -f mcp/Dockerfile -t robotiq_gripper_mcp:jazzy .
 #
 # Point BASE_IMAGE at any image built from docker/Dockerfile (a headless build,
 # a downstream image layered on it, ...); ROS_DISTRO comes from that image.
@@ -36,13 +37,14 @@ ENV UV_PYTHON=/usr/bin/python3 \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1
 
-WORKDIR /app
+WORKDIR /app/mcp
 RUN uv venv --system-site-packages /opt/gripper_mcp
-COPY pyproject.toml uv.lock README.md ./
-COPY gripper_mcp ./gripper_mcp
+COPY VERSION /app/VERSION
+COPY mcp/pyproject.toml mcp/uv.lock mcp/README.md ./
+COPY mcp/gripper_mcp ./gripper_mcp
 RUN uv sync --locked --no-dev
 
-COPY entrypoint.sh /entrypoint.sh
+COPY mcp/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Cell wiring is host-specific and is mounted, never baked in (see README).

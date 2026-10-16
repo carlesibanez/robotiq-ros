@@ -3,11 +3,10 @@
 
 The repository is versioned as a whole: one version for all packages, one tag
 per release. package.xml has to carry a literal version string — ament, rosdep
-and bloom parse it statically, so it cannot reference a variable — and so do
-mcp/pyproject.toml, which packaging tools read the same way, and mcp/uv.lock,
-which records the project's own version and is checked with `uv sync --locked`.
-VERSION is the authoritative copy and this script is what propagates it; the
---check mode runs in pre-commit and CI so the copies cannot drift.
+and bloom parse it statically, so it cannot reference a variable. mcp/ needs no
+copy: its pyproject.toml reads VERSION at build time. VERSION is the
+authoritative copy and this script is what propagates it; the --check mode runs
+in pre-commit and CI so the copies cannot drift.
 
     dev/version.py                 # report the current version and any drift
     dev/version.py --check         # exit non-zero on drift (pre-commit, CI)
@@ -27,13 +26,7 @@ VERSION_FILE = REPO / "VERSION"
 # <version> appears once per package.xml, and only the first occurrence is the
 # package's own version, so the substitution is deliberately count-limited.
 VERSION_TAG = re.compile(r"(<version>)([^<]*)(</version>)")
-PYPROJECT_VERSION = re.compile(r'^(version = ")([^"]*)(")', re.MULTILINE)
-UV_LOCK_VERSION = re.compile(r'(name = "robotiq-gripper-mcp"\nversion = ")([^"]*)(")')
-COPIES = {
-    "package.xml": VERSION_TAG,
-    "pyproject.toml": PYPROJECT_VERSION,
-    "uv.lock": UV_LOCK_VERSION,
-}
+COPIES = {"package.xml": VERSION_TAG}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -89,8 +82,8 @@ def render_version_file(version):
         version,
         "",
         "# Authoritative version for the whole repository. Every file below carries",
-        "# a copy, because ament, rosdep, bloom and Python packaging tools parse the",
-        "# version statically and it cannot reference a variable:",
+        "# a copy, because ament, rosdep and bloom parse the version statically and",
+        "# it cannot reference a variable (mcp/pyproject.toml reads this file instead):",
         "#",
     ]
     lines += [f"#   {p.relative_to(REPO)}" for p, _ in version_copies()]

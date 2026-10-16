@@ -4,7 +4,7 @@
 # for one) at http://127.0.0.1:8301/mcp and watch the 2F-85 move in RViz.
 #
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .     # once
-#   docker build -t robotiq_gripper_mcp:jazzy mcp                  # once
+#   docker build -f mcp/Dockerfile -t robotiq_gripper_mcp:jazzy .  # once
 #   ./mcp/demo/demo.sh            # xhost + compose up; demo.sh down tears down
 #
 # RViz needs a base image built with the default WITH_GUI=true; skip it on a
