@@ -71,21 +71,21 @@ std::string gripperElements(const std::string& extra_hardware_params, const std:
 {
    return R"(
           <link name=")"
-          + prefix + R"(robotiq_85_base_link"/>
+        + prefix + R"(robotiq_85_base_link"/>
           <link name=")"
-          + prefix + R"(robotiq_85_left_knuckle_link"/>
+        + prefix + R"(robotiq_85_left_knuckle_link"/>
           <joint name=")"
-          + prefix + R"(robotiq_85_left_knuckle_joint" type="revolute">
+        + prefix + R"(robotiq_85_left_knuckle_joint" type="revolute">
             <parent link=")"
-          + prefix + R"(robotiq_85_base_link" />
+        + prefix + R"(robotiq_85_base_link" />
             <child link=")"
-          + prefix + R"(robotiq_85_left_knuckle_link" />
+        + prefix + R"(robotiq_85_left_knuckle_link" />
             <axis xyz="0 -1 0" />
             <origin xyz="0.03060114 0.0 0.05490452" rpy="0 0 0" />
             <limit lower="0.0" upper="0.8" velocity="0.5" effort="50" />
           </joint>
           <ros2_control name=")"
-          + prefix + kComponentName + R"(" type="system">
+        + prefix + kComponentName + R"(" type="system">
             <hardware>
               <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
               <param name="gripper_speed_multiplier">1.0</param>
@@ -93,10 +93,10 @@ std::string gripperElements(const std::string& extra_hardware_params, const std:
               <param name="COM_port">/dev/ttyUSB0</param>
               <param name="gripper_closed_position">0.7929</param>
               )"
-          + extra_hardware_params + R"(
+        + extra_hardware_params + R"(
             </hardware>
             <joint name=")"
-          + prefix + R"(robotiq_85_left_knuckle_joint">
+        + prefix + R"(robotiq_85_left_knuckle_joint">
               <command_interface name="position" />
               <state_interface name="position">
                 <param name="initial_value">0.7929</param>
@@ -108,7 +108,7 @@ std::string gripperElements(const std::string& extra_hardware_params, const std:
               <state_interface name="gripper_fault_severity"/>
             </joint>
             <gpio name=")"
-          + prefix + R"(reactivate_gripper">
+        + prefix + R"(reactivate_gripper">
               <command_interface name="reactivate_gripper_cmd" />
               <command_interface name="reactivate_gripper_response" />
             </gpio>
@@ -121,7 +121,7 @@ std::string minimalRobotUrdf(const std::string& extra_hardware_params = "", cons
    return R"(
         <?xml version="1.0" encoding="utf-8"?>
         <robot name="test_robot">)"
-          + gripperElements(extra_hardware_params, prefix) + R"(
+        + gripperElements(extra_hardware_params, prefix) + R"(
         </robot>
         )";
 }
@@ -137,10 +137,13 @@ std::string twoGripperUrdf(const std::string& extra_hardware_params = "")
    for(const std::string prefix : {"left_", "right_"})
    {
       urdf += R"(
-          <joint name=")" + prefix + R"(base_joint" type="fixed">
+          <joint name=")"
+            + prefix + R"(base_joint" type="fixed">
             <parent link="world" />
-            <child link=")" + prefix + R"(robotiq_85_base_link" />
-          </joint>)" + gripperElements(extra_hardware_params, prefix);
+            <child link=")"
+            + prefix + R"(robotiq_85_base_link" />
+          </joint>)"
+            + gripperElements(extra_hardware_params, prefix);
    }
    return urdf + R"(
         </robot>
