@@ -318,6 +318,59 @@ def test_sim_plugin_declares_no_reactivate_gpio(model, joint):
     assert expand(model, True).find("gpio[@name='reactivate_gripper']") is not None
 
 
+@requires_xacro
+def test_the_deprecated_2f_gripper_file_expands_like_robotiq_gripper():
+    def expanded(name):
+        result = subprocess.run(
+            ["xacro", str(URDF_DIR / name)], capture_output=True, text=True, check=True
+        )
+        return ET.tostring(ET.fromstring(result.stdout))
+
+    assert expanded("robotiq_2f_gripper.urdf.xacro") == expanded(
+        "robotiq_gripper.urdf.xacro"
+    )
+
+
+HARDWARE_MACRO_CALL = """<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="calls">
+    <xacro:include filename="{include}" />
+    <ros2_control name="Gripper" type="system">
+        <xacro:{hardware} sim_gazebo="false" sim_topic_based="true"
+            sim_joint_commands_topic="/commands" sim_joint_states_topic="/states"
+            use_fake_hardware="false" mock_sensor_commands="false"
+            com_port="/dev/ttyUSB0" baudrate="115200"
+            gripper_speed_multiplier="1.0" gripper_force_multiplier="0.5"
+            gripper_max_speed="0.150" gripper_max_force="235.0"
+            gripper_closed_position="0.7929" />
+        <xacro:{mimic} name="mimic_joint" sim_gazebo="false" />
+    </ros2_control>
+</robot>
+"""
+
+
+@requires_xacro
+def test_the_deprecated_2f_hardware_macros_expand_like_the_shared_ones(tmp_path):
+    def expanded(include, hardware, mimic):
+        description = tmp_path / f"{hardware}.urdf.xacro"
+        description.write_text(
+            HARDWARE_MACRO_CALL.format(
+                include=URDF_DIR / include, hardware=hardware, mimic=mimic
+            )
+        )
+        result = subprocess.run(
+            ["xacro", str(description)], capture_output=True, text=True, check=True
+        )
+        return ET.tostring(ET.fromstring(result.stdout).find("ros2_control"))
+
+    assert expanded(
+        "2f_common.ros2_control.xacro",
+        "robotiq_2f_hardware",
+        "robotiq_2f_sim_mimic_joint",
+    ) == expanded(
+        "common.ros2_control.xacro", "robotiq_hardware", "robotiq_sim_mimic_joint"
+    )
+
+
 TWO_GRIPPERS = """<?xml version="1.0"?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="two_grippers">
     <xacro:include filename="{macro}" />
