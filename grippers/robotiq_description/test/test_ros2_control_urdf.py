@@ -234,8 +234,7 @@ def test_baudrate_reaches_the_driver(model):
     "model,profile",
     [
         ("robotiq_2f_85_gripper.urdf.xacro", "2f_85"),
-        # No SDK profile yet; the driver falls back to the 2F-85's band.
-        ("robotiq_2f_140_gripper.urdf.xacro", None),
+        ("robotiq_2f_140_gripper.urdf.xacro", "2f_85"),
         ("robotiq_hand_e_gripper.urdf.xacro", "hand_e"),
     ],
 )

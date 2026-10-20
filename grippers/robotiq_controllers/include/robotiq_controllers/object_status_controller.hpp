@@ -92,7 +92,7 @@ public:
             // Humble EOL: delete; the URDF supplies it from Jazzy on.
             this->template auto_declare<double>(robotiq_driver::kClosedPositionParam,
                                                 std::numeric_limits<double>::quiet_NaN());
-            this->template auto_declare<std::string>(robotiq_driver::kProfileParam, "2f_85");
+            this->template auto_declare<std::string>(robotiq_driver::kProfileParam, "");
          }
       }
       catch(const std::exception& e)
@@ -229,8 +229,16 @@ private:
       else
       {
          // Humble EOL: delete this branch.
-         return robotiq_driver::profileNamed(
-            this->get_node()->get_parameter(robotiq_driver::kProfileParam).as_string());
+         const std::string name = this->get_node()->get_parameter(robotiq_driver::kProfileParam).as_string();
+         if(name.empty())
+         {
+            RCLCPP_WARN(this->get_node()->get_logger(),
+                        "No %s: assuming the 2F-85's. Deprecated since 1.4.0; it is required from the next major "
+                        "release.",
+                        robotiq_driver::kProfileParam);
+            return Robotiq::profiles::k2F85;
+         }
+         return robotiq_driver::profileNamed(name);
       }
    }
 

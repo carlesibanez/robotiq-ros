@@ -65,8 +65,12 @@ inline constexpr const char* kClosedPositionParam = "gripper_closed_position";
 inline constexpr const char* kProfileParam = "gripper_profile";
 
 // The SDK profile \p name selects, or nothing for a name it does not know.
+// Surrounding whitespace is ignored, as a formatted URDF parameter carries it.
 [[nodiscard]] inline std::optional<Robotiq::DeviceProfile> profileNamed(std::string_view name)
 {
+   constexpr std::string_view kWhitespace = " \t\n\r";
+   name.remove_prefix(std::min(name.find_first_not_of(kWhitespace), name.size()));
+   name.remove_suffix(name.size() - std::min(name.find_last_not_of(kWhitespace) + 1, name.size()));
    if(name == "2f_85")
    {
       return Robotiq::profiles::k2F85;

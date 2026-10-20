@@ -208,10 +208,17 @@ TEST(HardwareParameters, ReadsTheProfile)
    EXPECT_EQ(Robotiq::profiles::k2F85.closedPosition, two_finger.profile.closedPosition);
 }
 
+TEST(HardwareParameters, ReadsAProfileSurroundedByWhitespace)
+{
+   const GripperParameters hand_e = parseParameters(info_with({{"gripper_profile", "\n  hand_e\n"}}), logger());
+   EXPECT_EQ(Robotiq::profiles::kHandE.closedPosition, hand_e.profile.closedPosition);
+}
+
 TEST(HardwareParameters, AnUnknownProfileIsFatal)
 {
    EXPECT_THROW(parseParameters(info_with({{"gripper_profile", "hand-e"}}), logger()), std::invalid_argument);
    EXPECT_THROW(parseParameters(info_with({{"gripper_profile", ""}}), logger()), std::invalid_argument);
+   EXPECT_THROW(parseParameters(info_with({{"gripper_profile", " \n "}}), logger()), std::invalid_argument);
 }
 
 TEST(HardwareParameters, UseDummyDefaultsOff)

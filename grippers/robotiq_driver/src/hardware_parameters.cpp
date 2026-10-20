@@ -184,6 +184,12 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
       }
       parameters.profile = *named;
    }
+   else
+   {
+      RCLCPP_WARN(logger,
+                  "No %s: assuming the 2F-85's. Deprecated since 1.4.0; it is required from the next major release.",
+                  kProfileParam);
+   }
 
    parameters.max_speed = parameterOr<double>(info, logger, kMaxSpeedParam, parameters.max_speed, asPositiveDouble);
    parameters.max_force = parameterOr<double>(info, logger, kMaxForceParam, parameters.max_force, asPositiveDouble);
