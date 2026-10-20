@@ -105,8 +105,8 @@ uint64_t asWholeNumber(const std::string& text, int base = 10)
    return value;
 }
 
-//! The range libserialport accepts. Out of it the port still opens and every
-//! exchange then times out, which reads as a dead gripper rather than a typo.
+//! Zero and rates past 1 Mbaud are typos, caught here with the parameter's
+//! name rather than when the port fails to open.
 uint32_t asBaudrate(const std::string& text)
 {
    const uint64_t value = asWholeNumber(text);

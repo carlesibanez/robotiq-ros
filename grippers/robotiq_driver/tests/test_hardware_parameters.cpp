@@ -89,8 +89,7 @@ TEST(HardwareParameters, ABaudrateTheSerialPortCannotUseKeepsTheDefault)
 {
    // Now that a launch argument feeds this, the ways someone writes the rate
    // wrong matter: std::stoul alone reads "115200bps" as 115200 and "1.152e5"
-   // as 1, and libserialport takes 0 or a wrapped negative without complaint,
-   // leaving a port that opens and then answers nothing.
+   // as 1, and 0 or a wrapped negative is no rate at all.
    for(const char* unusable : {"115200bps", "1.152e5", "115 200", "0", "-1", "2000000", ""})
    {
       EXPECT_EQ(kBaudrateDefault,

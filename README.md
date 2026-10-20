@@ -222,7 +222,7 @@ overrides and xacro arguments work untouched:
 | | PickNik `humble` | This repository on Humble |
 |---|---|---|
 | ROS distro | Humble | Humble |
-| Serial transport | `serial` package, `vcs import`ed | the `extern/grippers` SDK submodule (libserialport) |
+| Serial transport | `serial` package, `vcs import`ed | the `extern/grippers` SDK submodule (its own POSIX and Win32 serial transport) |
 | `robotiq_gripper_controller` type | `position_controllers/GripperActionController` | `robotiq_controllers/GripperCommandController`, the same controller plus `use_object_status` |
 | `gripper_cmd` action type | `control_msgs/action/GripperCommand` | `control_msgs/action/GripperCommand` |
 
