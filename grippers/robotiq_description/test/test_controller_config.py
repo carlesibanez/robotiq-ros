@@ -43,7 +43,10 @@ import importlib.util
 import logging
 import math
 import re
+import shutil
+import subprocess
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 import yaml
@@ -64,6 +67,7 @@ JOINT_PLACEHOLDER = "$(var gripper_joint)"
 CLOSED_POSITION_PLACEHOLDER = "$(var gripper_closed_position)"
 PROFILE_PLACEHOLDER = "$(var gripper_profile)"  # Humble EOL: delete.
 GOAL_TOLERANCE_PLACEHOLDER = "$(var gripper_goal_tolerance)"
+STALL_VELOCITY_PLACEHOLDER = "$(var gripper_stall_velocity_threshold)"
 
 # The topic_based plugin exports neither the set_gripper_max_* command
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
@@ -149,7 +153,13 @@ def load_launch_module():
     return module
 
 
-GRIPPER_MODELS = sorted(load_launch_module().GRIPPER_JOINTS)
+# The launch file imports launch_ros: without it the list is empty and the tests
+# over it skip, rather than the whole module failing to collect.
+GRIPPER_MODELS = (
+    sorted(load_launch_module().GRIPPER_JOINTS)
+    if importlib.util.find_spec("launch_ros")
+    else []
+)
 
 
 def load(config):
@@ -260,24 +270,52 @@ def test_goal_tolerance_is_left_to_the_launch(config):
     assert raw["goal_tolerance"] == GOAL_TOLERANCE_PLACEHOLDER
 
 
+@pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)
+def test_stall_velocity_threshold_is_left_to_the_launch(config):
+    raw = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    assert raw["stall_velocity_threshold"] == STALL_VELOCITY_PLACEHOLDER
+
+
+PER_MODEL_TABLES = ("GRIPPER_GOAL_TOLERANCES", "GRIPPER_STALL_VELOCITY_THRESHOLDS")
+
+
+@pytest.mark.parametrize("table", PER_MODEL_TABLES)
 @pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
-def test_launch_defaults_the_goal_tolerance_from_the_gripper_model(gripper_model):
+def test_launch_defaults_the_per_model_values_from_the_gripper_model(
+    gripper_model, table
+):
     launch_module = load_launch_module()
-    tolerance = launch_module.PerGripperModel(
-        launch_module.GRIPPER_GOAL_TOLERANCES, LaunchConfiguration("gripper_model")
-    )
-    assert (
-        perform(tolerance, gripper_model=gripper_model)
-        == launch_module.GRIPPER_GOAL_TOLERANCES[gripper_model]
-    )
+    values = getattr(launch_module, table)
+    value = launch_module.PerGripperModel(values, LaunchConfiguration("gripper_model"))
+    assert perform(value, gripper_model=gripper_model) == values[gripper_model]
 
 
-def test_every_gripper_model_has_a_goal_tolerance():
+@pytest.mark.parametrize("table", PER_MODEL_TABLES)
+def test_every_gripper_model_has_every_per_model_value(table):
     launch_module = load_launch_module()
-    assert (
-        launch_module.GRIPPER_GOAL_TOLERANCES.keys()
-        == launch_module.GRIPPER_JOINTS.keys()
+    assert getattr(launch_module, table).keys() == launch_module.GRIPPER_JOINTS.keys()
+
+
+@pytest.mark.skipif(shutil.which("xacro") is None, reason="xacro not on PATH")
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_the_simulation_receives_every_goal_outside_the_tolerance(gripper_model):
+    urdf = subprocess.run(
+        [
+            "xacro",
+            str(Path(__file__).parents[1] / "urdf" / "robotiq_gripper.urdf.xacro"),
+            f"gripper_model:={gripper_model}",
+            "use_fake_hardware:=false",
+            "sim_topic_based:=true",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    threshold = ElementTree.fromstring(urdf).find(
+        "ros2_control/hardware/param[@name='trigger_joint_command_threshold']"
     )
+    tolerance = load_launch_module().GRIPPER_GOAL_TOLERANCES[gripper_model]
+    assert float(threshold.text) <= float(tolerance)
 
 
 def test_launch_restricts_gripper_model_to_the_known_joints():
@@ -502,6 +540,10 @@ def resolved(config, joint=JOINT, gripper_model="2f_85"):
         .replace(
             GOAL_TOLERANCE_PLACEHOLDER,
             load_launch_module().GRIPPER_GOAL_TOLERANCES[gripper_model],
+        )
+        .replace(
+            STALL_VELOCITY_PLACEHOLDER,
+            load_launch_module().GRIPPER_STALL_VELOCITY_THRESHOLDS[gripper_model],
         )
     )
 

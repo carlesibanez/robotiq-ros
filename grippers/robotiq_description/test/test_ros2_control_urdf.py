@@ -251,6 +251,24 @@ def test_the_hand_e_driver_closes_at_one_finger_s_travel():
 
 
 @requires_xacro
+def test_the_hand_e_driver_s_full_speed_is_the_finger_joint_s_limit():
+    result = subprocess.run(
+        [
+            "xacro",
+            str(URDF_DIR / "robotiq_hand_e_gripper.urdf.xacro"),
+            "use_fake_hardware:=false",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    robot = ET.fromstring(result.stdout)
+    limit = robot.find("joint[@name='hande_left_finger_joint']/limit")
+    max_speed = hardware_param(robot.find("ros2_control"), "gripper_max_speed")
+    assert float(max_speed) == float(limit.get("velocity"))
+
+
+@requires_xacro
 def test_the_hand_e_joint_is_0_open_and_closes_as_it_grows():
     result = subprocess.run(
         ["xacro", str(URDF_DIR / "robotiq_hand_e_gripper.urdf.xacro")],

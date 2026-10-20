@@ -37,7 +37,8 @@
                 gripper_max_speed="${gripper_max_speed}"
                 gripper_max_force="${gripper_max_force}"
                 gripper_closed_position="${gripper_closed_position}"
-                gripper_profile="hand_e"/>
+                gripper_profile="hand_e"
+                trigger_joint_command_threshold="0.0005"/>
 
             <joint name="${prefix}hande_left_finger_joint">
                 <command_interface name="position" />

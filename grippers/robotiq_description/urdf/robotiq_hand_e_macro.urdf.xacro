@@ -19,7 +19,7 @@
         baudrate:=115200
         gripper_speed_multiplier:=1.0
         gripper_force_multiplier:=0.5
-        gripper_max_speed:=0.150
+        gripper_max_speed:=0.075
         gripper_max_force:=185.0
         gripper_closed_position:=0.025
         tcp_z_offset:=0.1325">
@@ -35,6 +35,8 @@
         <xacro:property name="states_topic" value="${isaac_joint_states or ('/isaac_joint_states' if sim_isaac else sim_joint_states_topic)}"/>
 
         <xacro:property name="stroke" value="0.050"/>
+        <!-- One finger's top speed: the gap closes at 0.150 m/s with both moving. -->
+        <xacro:property name="finger_speed" value="0.075"/>
 
         <xacro:include filename="$(find robotiq_description)/urdf/hand_e.ros2_control.xacro" />
         <xacro:if value="${include_ros2_control}">
@@ -119,14 +121,14 @@
             <child link="${prefix}hande_left_finger" />
             <axis xyz="1 0 0" />
             <origin xyz="${-stroke/2} 0 0.099" rpy="0 0 0" />
-            <limit lower="0.0" upper="${stroke/2}" velocity="0.15" effort="180" />
+            <limit lower="0.0" upper="${stroke/2}" velocity="${finger_speed}" effort="180" />
         </joint>
         <joint name="${prefix}hande_right_finger_joint" type="prismatic">
             <parent link="${prefix}hand_e_base_link" />
             <child link="${prefix}hande_right_finger" />
             <axis xyz="-1 0 0" />
             <origin xyz="${stroke/2} 0 0.099" rpy="0 0 0" />
-            <limit lower="0.0" upper="${stroke/2}" velocity="0.15" effort="180" />
+            <limit lower="0.0" upper="${stroke/2}" velocity="${finger_speed}" effort="180" />
             <mimic joint="${prefix}hande_left_finger_joint" />
         </joint>
 

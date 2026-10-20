@@ -185,6 +185,15 @@ GRIPPER_GOAL_TOLERANCES = {
     "hand_e": "0.0005",
 }
 
+# stall_velocity_threshold for the topic-based simulation, in the driven joint's
+# unit per second, well under the slowest finger speed: about 0.2 rad/s on the
+# 2F models, 0.010 m/s on the Hand-E.
+GRIPPER_STALL_VELOCITY_THRESHOLDS = {
+    "2f_85": "0.05",
+    "2f_140": "0.05",
+    "hand_e": "0.002",
+}
+
 
 class UsesRealGripper(Substitution):
     def perform(self, context):
@@ -341,6 +350,16 @@ def generate_launch_description():
             ),
             description="goal_tolerance of the gripper controller, in the joint's unit; "
             "defaults from gripper_model",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="gripper_stall_velocity_threshold",
+            default_value=PerGripperModel(
+                GRIPPER_STALL_VELOCITY_THRESHOLDS, LaunchConfiguration("gripper_model")
+            ),
+            description="stall_velocity_threshold of the gripper controller under "
+            "sim_topic_based, in the joint's unit per second; defaults from gripper_model",
         )
     )
     args.append(
