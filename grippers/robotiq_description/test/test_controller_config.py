@@ -43,7 +43,10 @@ import importlib.util
 import logging
 import math
 import re
+import shutil
+import subprocess
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 import yaml
@@ -62,6 +65,9 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 # Humble EOL: delete.
 CLOSED_POSITION_PLACEHOLDER = "$(var gripper_closed_position)"
+PROFILE_PLACEHOLDER = "$(var gripper_profile)"  # Humble EOL: delete.
+GOAL_TOLERANCE_PLACEHOLDER = "$(var gripper_goal_tolerance)"
+STALL_VELOCITY_PLACEHOLDER = "$(var gripper_stall_velocity_threshold)"
 
 # The topic_based plugin exports neither the set_gripper_max_* command
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
@@ -89,7 +95,7 @@ MOCK_OF = {
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
 # which asserts the hardware exports exactly these.
 JOINT = "robotiq_85_left_knuckle_joint"
-GRIPPER_JOINTS = (JOINT, "finger_joint")
+GRIPPER_JOINTS = (JOINT, "finger_joint", "hande_left_finger_joint")
 UPDATE_RATE_HZ = 500
 
 # Every key a controller_manager block may carry besides the controllers, per
@@ -145,6 +151,15 @@ def load_launch_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+# The launch file imports launch_ros: without it the list is empty and the tests
+# over it skip, rather than the whole module failing to collect.
+GRIPPER_MODELS = (
+    sorted(load_launch_module().GRIPPER_JOINTS)
+    if importlib.util.find_spec("launch_ros")
+    else []
+)
 
 
 def load(config):
@@ -203,6 +218,7 @@ def test_mock_config_is_the_driver_config_without_the_object_status(config):
     mock_params = mock["robotiq_gripper_controller"]["ros__parameters"]
     del driver_params["use_object_status"], driver_params["object_status_timeout"]
     driver_params.pop("gripper_closed_position", None)  # Humble EOL: delete.
+    driver_params.pop("gripper_profile", None)  # Humble EOL: delete.
     del mock_params["use_object_status"]
     assert mock_params == driver_params
 
@@ -236,14 +252,70 @@ def test_launch_description_builds():
     load_launch_module().generate_launch_description()
 
 
-@pytest.mark.parametrize(
-    "gripper_model,expected",
-    [("2f_85", JOINT), ("2f_140", "finger_joint")],
-)
-def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model, expected):
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model):
     launch_module = load_launch_module()
-    joint = launch_module.DefaultGripperJoint(LaunchConfiguration("gripper_model"))
-    assert perform(joint, gripper_model=gripper_model) == expected
+    joint = launch_module.PerGripperModel(
+        launch_module.GRIPPER_JOINTS, LaunchConfiguration("gripper_model")
+    )
+    assert (
+        perform(joint, gripper_model=gripper_model)
+        == launch_module.GRIPPER_JOINTS[gripper_model]
+    )
+
+
+@pytest.mark.parametrize("config", ALL_CONFIGS + MOCK_CONFIGS + TOPIC_BASED_CONFIGS)
+def test_goal_tolerance_is_left_to_the_launch(config):
+    raw = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    assert raw["goal_tolerance"] == GOAL_TOLERANCE_PLACEHOLDER
+
+
+@pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)
+def test_stall_velocity_threshold_is_left_to_the_launch(config):
+    raw = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    assert raw["stall_velocity_threshold"] == STALL_VELOCITY_PLACEHOLDER
+
+
+PER_MODEL_TABLES = ("GRIPPER_GOAL_TOLERANCES", "GRIPPER_STALL_VELOCITY_THRESHOLDS")
+
+
+@pytest.mark.parametrize("table", PER_MODEL_TABLES)
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_launch_defaults_the_per_model_values_from_the_gripper_model(
+    gripper_model, table
+):
+    launch_module = load_launch_module()
+    values = getattr(launch_module, table)
+    value = launch_module.PerGripperModel(values, LaunchConfiguration("gripper_model"))
+    assert perform(value, gripper_model=gripper_model) == values[gripper_model]
+
+
+@pytest.mark.parametrize("table", PER_MODEL_TABLES)
+def test_every_gripper_model_has_every_per_model_value(table):
+    launch_module = load_launch_module()
+    assert getattr(launch_module, table).keys() == launch_module.GRIPPER_JOINTS.keys()
+
+
+@pytest.mark.skipif(shutil.which("xacro") is None, reason="xacro not on PATH")
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_the_simulation_receives_every_goal_outside_the_tolerance(gripper_model):
+    urdf = subprocess.run(
+        [
+            "xacro",
+            str(Path(__file__).parents[1] / "urdf" / "robotiq_gripper.urdf.xacro"),
+            f"gripper_model:={gripper_model}",
+            "use_fake_hardware:=false",
+            "sim_topic_based:=true",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    threshold = ElementTree.fromstring(urdf).find(
+        "ros2_control/hardware/param[@name='trigger_joint_command_threshold']"
+    )
+    tolerance = load_launch_module().GRIPPER_GOAL_TOLERANCES[gripper_model]
+    assert float(threshold.text) <= float(tolerance)
 
 
 def test_launch_restricts_gripper_model_to_the_known_joints():
@@ -443,6 +515,11 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
     }
 
 
+# The gripper_profile each model's description hands the driver, the 2F-85's
+# when it sets none. Humble EOL: delete.
+MODEL_PROFILES = {"2f_85": "2f_85", "2f_140": "2f_85", "hand_e": "hand_e"}
+
+
 # Humble EOL: delete.
 def macro_closed_position(gripper_model):
     """The model's gripper_closed_position as its macro declares it."""
@@ -454,9 +531,20 @@ def macro_closed_position(gripper_model):
 
 def resolved(config, joint=JOINT, gripper_model="2f_85"):
     return (
-        config.read_text().replace(JOINT_PLACEHOLDER, joint)
+        config.read_text()
+        .replace(JOINT_PLACEHOLDER, joint)
         # Humble EOL: delete.
         .replace(CLOSED_POSITION_PLACEHOLDER, macro_closed_position(gripper_model))
+        # Humble EOL: delete.
+        .replace(PROFILE_PLACEHOLDER, MODEL_PROFILES[gripper_model])
+        .replace(
+            GOAL_TOLERANCE_PLACEHOLDER,
+            load_launch_module().GRIPPER_GOAL_TOLERANCES[gripper_model],
+        )
+        .replace(
+            STALL_VELOCITY_PLACEHOLDER,
+            load_launch_module().GRIPPER_STALL_VELOCITY_THRESHOLDS[gripper_model],
+        )
     )
 
 
@@ -514,6 +602,22 @@ def test_launch_hands_the_humble_controller_the_description_s_closed_position(
 
 # Humble EOL: delete this test.
 @requires_launch
+def test_launch_hands_the_humble_controller_the_description_s_profile(monkeypatch):
+    spawned = spawned_controllers(
+        "humble",
+        monkeypatch,
+        gripper_model="hand_e",
+        gripper_joint="hande_left_finger_joint",
+    )
+    params = yaml.safe_load(spawned["robotiq_gripper_controller"])[
+        "robotiq_gripper_controller"
+    ]["ros__parameters"]
+    assert params["gripper_profile"] == "hand_e"
+    assert params["gripper_closed_position"] == 0.025
+
+
+# Humble EOL: delete this test.
+@requires_launch
 def test_launch_starts_a_humble_joint_the_description_does_not_drive(monkeypatch):
     spawned = spawned_controllers("humble", monkeypatch, gripper_joint="no_such_joint")
     params = yaml.safe_load(spawned["robotiq_gripper_controller"])[
@@ -556,6 +660,7 @@ def test_launch_reads_no_closed_position_unless_the_driver_needs_it(
 ):
     _, context = launch_entities(distro, monkeypatch, **launch_arguments)
     assert "gripper_closed_position" not in context.launch_configurations
+    assert "gripper_profile" not in context.launch_configurations
 
 
 @pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)

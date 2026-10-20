@@ -105,8 +105,8 @@ uint64_t asWholeNumber(const std::string& text, int base = 10)
    return value;
 }
 
-//! The range libserialport accepts. Out of it the port still opens and every
-//! exchange then times out, which reads as a dead gripper rather than a typo.
+//! Zero and rates past 1 Mbaud are typos, caught here with the parameter's
+//! name rather than when the port fails to open.
 uint32_t asBaudrate(const std::string& text)
 {
    const uint64_t value = asWholeNumber(text);
@@ -170,6 +170,25 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
    if(!isValidClosedPosition(parameters.closed_position))
    {
       throw std::invalid_argument("gripper_closed_position must be a non-zero, finite joint value");
+   }
+
+   // Unlike the scales below, a mistyped profile is fatal: falling back to the
+   // 2F-85's band would stop another model short of its closed end.
+   const auto profile = info.hardware_parameters.find(kProfileParam);
+   if(profile != info.hardware_parameters.end())
+   {
+      const std::optional<Robotiq::DeviceProfile> named = profileNamed(profile->second);
+      if(!named)
+      {
+         throw std::invalid_argument("gripper_profile must be 2f_85 or hand_e, got '" + profile->second + "'");
+      }
+      parameters.profile = *named;
+   }
+   else
+   {
+      RCLCPP_WARN(logger,
+                  "No %s: assuming the 2F-85's. Deprecated since 1.4.0; it is required from the next major release.",
+                  kProfileParam);
    }
 
    parameters.max_speed = parameterOr<double>(info, logger, kMaxSpeedParam, parameters.max_speed, asPositiveDouble);

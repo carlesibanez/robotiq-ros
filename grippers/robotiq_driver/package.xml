@@ -18,9 +18,6 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
 
-  <!-- Serial backend of the gripper SDK compiled in from extern/grippers. -->
-  <depend>libserialport-dev</depend>
-
   <!-- Check code against style conventions using clang-format. -->
   <test_depend>ament_clang_format</test_depend>
   <!-- Check code against style conventions using clang-tidy. -->

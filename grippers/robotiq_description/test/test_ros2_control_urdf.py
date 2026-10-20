@@ -58,6 +58,7 @@ TOPIC_BASED_CONFIG = PKG_DIR / "config" / "robotiq_controllers.topic_based.yaml"
 MODELS = {
     "robotiq_2f_85_gripper.urdf.xacro": "robotiq_85_left_knuckle_joint",
     "robotiq_2f_140_gripper.urdf.xacro": "finger_joint",
+    "robotiq_hand_e_gripper.urdf.xacro": "hande_left_finger_joint",
 }
 
 MOCK_PLUGIN = "mock_components/GenericSystem"
@@ -65,8 +66,13 @@ REAL_PLUGIN = "robotiq_driver/RobotiqGripperHardwareInterface"
 TOPIC_BASED_PLUGIN = "topic_based_ros2_control/TopicBasedSystem"
 TOPIC_BASED_ARG = "sim_topic_based:=true"
 
-# Every 2F finger joint except the driven knuckle follows it through <mimic>.
-MIMIC_JOINT_COUNT = 5
+# Joints that follow the driven one through <mimic>: every other 2F finger
+# joint, and the Hand-E's right finger.
+MIMIC_JOINT_COUNTS = {
+    "robotiq_2f_85_gripper.urdf.xacro": 5,
+    "robotiq_2f_140_gripper.urdf.xacro": 5,
+    "robotiq_hand_e_gripper.urdf.xacro": 1,
+}
 
 # Exported by the driver at runtime; needed from the URDF under mock hardware.
 EXTRA_MOCK_COMMAND_INTERFACES = {"set_gripper_max_velocity", "set_gripper_max_effort"}
@@ -124,6 +130,21 @@ def state_interfaces_of(ros2_control, joint_name):
 
 def joints_of(ros2_control):
     return {j.get("name") for j in ros2_control.findall("joint")}
+
+
+@requires_xacro
+@pytest.mark.parametrize(
+    "gripper_model,joint",
+    [("2f_140", "finger_joint"), ("hand_e", "hande_left_finger_joint")],
+)
+def test_gripper_model_selects_the_description_from_the_launch_default(
+    gripper_model, joint
+):
+    # The launch loads robotiq_gripper.urdf.xacro and passes only gripper_model.
+    ros2_control = expand(
+        "robotiq_gripper.urdf.xacro", True, f"gripper_model:={gripper_model}"
+    )
+    assert joints_of(ros2_control) == {joint}
 
 
 @requires_xacro
@@ -209,6 +230,73 @@ def test_baudrate_reaches_the_driver(model):
 
 
 @requires_xacro
+@pytest.mark.parametrize(
+    "model,profile",
+    [
+        ("robotiq_2f_85_gripper.urdf.xacro", "2f_85"),
+        ("robotiq_2f_140_gripper.urdf.xacro", "2f_85"),
+        ("robotiq_hand_e_gripper.urdf.xacro", "hand_e"),
+    ],
+)
+def test_the_driver_gets_the_models_sdk_profile(model, profile):
+    assert hardware_param(expand(model, False), "gripper_profile") == profile
+    assert hardware_param(expand(model, True), "gripper_profile") is None
+
+
+@requires_xacro
+def test_the_hand_e_driver_closes_at_one_finger_s_travel():
+    ros2_control = expand("robotiq_hand_e_gripper.urdf.xacro", False)
+    assert float(hardware_param(ros2_control, "gripper_closed_position")) == 0.025
+
+
+@requires_xacro
+def test_the_hand_e_driver_s_full_speed_is_the_finger_joint_s_limit():
+    result = subprocess.run(
+        [
+            "xacro",
+            str(URDF_DIR / "robotiq_hand_e_gripper.urdf.xacro"),
+            "use_fake_hardware:=false",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    robot = ET.fromstring(result.stdout)
+    limit = robot.find("joint[@name='hande_left_finger_joint']/limit")
+    max_speed = hardware_param(robot.find("ros2_control"), "gripper_max_speed")
+    assert float(max_speed) == float(limit.get("velocity"))
+
+
+@requires_xacro
+def test_the_hand_e_joint_is_0_open_and_closes_as_it_grows():
+    result = subprocess.run(
+        ["xacro", str(URDF_DIR / "robotiq_hand_e_gripper.urdf.xacro")],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    robot = ET.fromstring(result.stdout)
+    right_mimic = robot.find("joint[@name='hande_right_finger_joint']/mimic")
+    assert right_mimic.get("joint") == "hande_left_finger_joint"
+    assert float(right_mimic.get("multiplier", "1")) == 1.0
+    assert float(right_mimic.get("offset", "0")) == 0.0
+
+    def finger_x(name, travel):
+        joint = robot.find(f"joint[@name='{name}']")
+        origin_x = float(joint.find("origin").get("xyz").split()[0])
+        axis_x = float(joint.find("axis").get("xyz").split()[0])
+        return origin_x + axis_x * travel
+
+    def pad_gap(travel):
+        return finger_x("hande_right_finger_joint", travel) - finger_x(
+            "hande_left_finger_joint", travel
+        )
+
+    assert pad_gap(0.0) == pytest.approx(0.050)
+    assert pad_gap(0.025) == pytest.approx(0.0)
+
+
+@requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
 def test_sim_plugin_declares_only_the_position_command(model, joint):
     # The topic_based plugin does not know the driver's set_gripper_max_* interfaces;
@@ -227,6 +315,59 @@ def test_sim_plugin_declares_no_reactivate_gpio(model, joint):
     assert expand(model, False, TOPIC_BASED_ARG).find("gpio") is None
     assert expand(model, False).find("gpio[@name='reactivate_gripper']") is not None
     assert expand(model, True).find("gpio[@name='reactivate_gripper']") is not None
+
+
+@requires_xacro
+def test_the_deprecated_2f_gripper_file_expands_like_robotiq_gripper():
+    def expanded(name):
+        result = subprocess.run(
+            ["xacro", str(URDF_DIR / name)], capture_output=True, text=True, check=True
+        )
+        return ET.tostring(ET.fromstring(result.stdout))
+
+    assert expanded("robotiq_2f_gripper.urdf.xacro") == expanded(
+        "robotiq_gripper.urdf.xacro"
+    )
+
+
+HARDWARE_MACRO_CALL = """<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="calls">
+    <xacro:include filename="{include}" />
+    <ros2_control name="Gripper" type="system">
+        <xacro:{hardware} sim_gazebo="false" sim_topic_based="true"
+            sim_joint_commands_topic="/commands" sim_joint_states_topic="/states"
+            use_fake_hardware="false" mock_sensor_commands="false"
+            com_port="/dev/ttyUSB0" baudrate="115200"
+            gripper_speed_multiplier="1.0" gripper_force_multiplier="0.5"
+            gripper_max_speed="0.150" gripper_max_force="235.0"
+            gripper_closed_position="0.7929" />
+        <xacro:{mimic} name="mimic_joint" sim_gazebo="false" />
+    </ros2_control>
+</robot>
+"""
+
+
+@requires_xacro
+def test_the_deprecated_2f_hardware_macros_expand_like_the_shared_ones(tmp_path):
+    def expanded(include, hardware, mimic):
+        description = tmp_path / f"{hardware}.urdf.xacro"
+        description.write_text(
+            HARDWARE_MACRO_CALL.format(
+                include=URDF_DIR / include, hardware=hardware, mimic=mimic
+            )
+        )
+        result = subprocess.run(
+            ["xacro", str(description)], capture_output=True, text=True, check=True
+        )
+        return ET.tostring(ET.fromstring(result.stdout).find("ros2_control"))
+
+    assert expanded(
+        "2f_common.ros2_control.xacro",
+        "robotiq_2f_hardware",
+        "robotiq_2f_sim_mimic_joint",
+    ) == expanded(
+        "common.ros2_control.xacro", "robotiq_hardware", "robotiq_sim_mimic_joint"
+    )
 
 
 TWO_GRIPPERS = """<?xml version="1.0"?>
@@ -289,7 +430,7 @@ def test_sim_topic_based_declares_the_mimic_joints_as_state_only(model, joint):
     # them, but with no command interface: only the knuckle is driven.
     ros2_control = expand(model, False, "sim_topic_based:=true")
     mimic = joints_of(ros2_control) - {joint}
-    assert len(mimic) == MIMIC_JOINT_COUNT
+    assert len(mimic) == MIMIC_JOINT_COUNTS[model]
     for name in mimic:
         assert command_interfaces_of(ros2_control, name) == set()
         assert state_interfaces_of(ros2_control, name) == {"position", "velocity"}
