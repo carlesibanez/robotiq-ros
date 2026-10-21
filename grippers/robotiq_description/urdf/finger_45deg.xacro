@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="finger_v1" params="prefix:='' parent_left parent_right tcp_parent">
+
+    <!-- Tool Center Point (TCP) -->
+    <link name="${prefix}tcp_link">
+      <inertial>
+        <mass value="0.001"/>
+        <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}tcp_link_joint" type="fixed">
+      <parent link="${tcp_parent}"/>
+      <child link="${prefix}tcp_link"/>
+      <origin xyz="0 -0.03347 0.1739" rpy="0 ${-3*pi/4} ${pi/2}"/>
+    </joint>
+
+    <!-- Top Finger (attached to Right Fingerbase) -->
+    <link name="${prefix}top_finger">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_description/meshes/visual/hand_e/Top-finger-45deg.stl"/>
+        </geometry>
+        <material name="">
+          <color rgba="0.7 0.7 0.7 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_description/meshes/visual/hand_e/Top-finger-45deg.stl"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.03"/>
+        <origin xyz="-0.022 0.021 0.037" rpy="0 0 0"/>
+        <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}top_finger_joint" type="fixed">
+      <parent link="${parent_right}"/>
+      <child link="${prefix}top_finger"/>
+      <origin xyz="0.022014 -0.01425 0.0015" rpy="0 0 0"/>
+    </joint>
+    
+    <!-- Bottom Finger (attached to Left Fingerbase) -->
+    <link name="${prefix}bottom_finger">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_description/meshes/visual/hand_e/Bottom-finger-45deg.stl"/>
+        </geometry>
+        <material name="">
+          <color rgba="0.7 0.7 0.7 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_description/meshes/visual/hand_e/Bottom-finger-45deg.stl"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.03"/>
+        <origin xyz="0.006 -0.021 0.037" rpy="0 0 0"/>
+        <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}bottom_finger_joint" type="fixed">
+      <parent link="${parent_left}"/>
+      <child link="${prefix}bottom_finger"/>
+      <origin xyz="-0.022014 0.01425 0.0015" rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+</robot>

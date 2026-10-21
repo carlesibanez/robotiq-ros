@@ -22,7 +22,8 @@
         gripper_max_speed:=0.075
         gripper_max_force:=185.0
         gripper_closed_position:=0.025
-        tcp_z_offset:=0.1325">
+        tcp_z_offset:=0.1325
+        finger_type:=aluminum">
 
         <!-- PickNik's names for the topic-based path, released in 1.1.0 and
              deprecated since 1.2.0. sim_isaac keeps its old /isaac_joint_* topic
@@ -39,6 +40,9 @@
         <xacro:property name="finger_speed" value="0.075"/>
 
         <xacro:include filename="$(find robotiq_description)/urdf/hand_e.ros2_control.xacro" />
+        <xacro:include filename="$(find robotiq_description)/urdf/finger_aluminum.xacro" />
+        <xacro:include filename="$(find robotiq_description)/urdf/finger_45deg.xacro" />
+
         <xacro:if value="${include_ros2_control}">
             <xacro:robotiq_gripper_ros2_control
                 name="${name}" prefix="${prefix}"
@@ -99,21 +103,6 @@
                     <mesh filename="package://robotiq_description/meshes/visual/hand_e/Fingerbase.stl" />
                 </geometry>
             </collision>
-            <visual>
-                <origin xyz="-0.022014 0.01425 0.0015" rpy="0 0 ${pi}" />
-                <geometry>
-                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/alum-finger.stl" />
-                </geometry>
-                <material name="">
-                    <color rgba="0.7 0.7 0.7 1" />
-                </material>
-            </visual>
-            <collision>
-                <origin xyz="-0.022014 0.01425 0.0015" rpy="0 0 ${pi}" />
-                <geometry>
-                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/alum-finger.stl" />
-                </geometry>
-            </collision>
         </link>
         <link name="${prefix}hande_right_finger">
             <visual>
@@ -129,21 +118,6 @@
                 <origin xyz="0 0 0" rpy="0 0 ${pi}" />
                 <geometry>
                     <mesh filename="package://robotiq_description/meshes/visual/hand_e/Fingerbase.stl" />
-                </geometry>
-            </collision>
-            <visual>
-                <origin xyz="0.022014 -0.01425 0.0015" rpy="0 0 0" />
-                <geometry>
-                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/alum-finger.stl" />
-                </geometry>
-                <material name="">
-                    <color rgba="0.7 0.7 0.7 1" />
-                </material>
-            </visual>
-            <collision>
-                <origin xyz="0.022014 -0.01425 0.0015" rpy="0 0 0" />
-                <geometry>
-                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/alum-finger.stl" />
                 </geometry>
             </collision>
         </link>
@@ -166,11 +140,20 @@
             <mimic joint="${prefix}hande_left_finger_joint" />
         </joint>
 
-        <link name="${prefix}tcp_link" />
-        <joint name="${prefix}tcp_link_joint" type="fixed">
-            <parent link="${prefix}hand_e_base_link" />
-            <child link="${prefix}tcp_link" />
-            <origin xyz="0 0 ${tcp_z_offset}" rpy="0 0 ${-pi/2}" />
-        </joint>
+        <!-- Finger pair selection -->
+        <xacro:if value="${finger_type in ['aluminum', 'aluminium', 'alum']}">
+            <xacro:finger_aluminum prefix="${prefix}" parent_left="${prefix}hande_left_finger" parent_right="${prefix}hande_right_finger" tcp_parent="${prefix}hand_e_base_link" />
+        </xacro:if>
+        <xacro:if value="${finger_type in ['45deg', '45', 'plate']}">
+            <xacro:finger_v1 prefix="${prefix}" parent_left="${prefix}hande_left_finger" parent_right="${prefix}hande_right_finger" tcp_parent="${prefix}hand_e_base_link" />
+        </xacro:if>
+        <xacro:unless value="${finger_type in ['aluminum', 'aluminium', 'alum', '45deg', '45', 'plate']}">
+            <link name="${prefix}tcp_link" />
+            <joint name="${prefix}tcp_link_joint" type="fixed">
+                <parent link="${prefix}hand_e_base_link" />
+                <child link="${prefix}tcp_link" />
+                <origin xyz="0 0 ${tcp_z_offset}" rpy="0 0 ${-pi/2}" />
+            </joint>
+        </xacro:unless>
     </xacro:macro>
 </robot>
