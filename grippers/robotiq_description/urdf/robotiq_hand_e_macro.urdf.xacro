@@ -88,6 +88,11 @@
         </joint>
 
         <link name="${prefix}hande_left_finger">
+            <inertial>
+                <origin xyz="0 0 0.01" rpy="0 0 0" />
+                <mass value="0.038" />
+                <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001" />
+            </inertial>
             <visual>
                 <origin xyz="0 0 0" rpy="0 0 0" />
                 <geometry>
@@ -105,6 +110,11 @@
             </collision>
         </link>
         <link name="${prefix}hande_right_finger">
+            <inertial>
+                <origin xyz="0 0 0.01" rpy="0 0 ${pi}" />
+                <mass value="0.038" />
+                <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001" />
+            </inertial>
             <visual>
                 <origin xyz="0 0 0" rpy="0 0 ${pi}" />
                 <geometry>
